@@ -3,77 +3,66 @@ package com.example.autotarget;
 import java.util.List;
 import java.util.ArrayList;
 
-public class Canhao extends Thread {
-
-    private double x;
-    private double y;
+/**
+ * Classe Canhao que gerencia mira e disparos.
+ * Implementa Runnable para processamento independente da UI.
+ */
+public class Canhao implements Runnable {
+    private double x, y;
     private double angulo;
-    private List<Projetil> projeteis;
+    private final List<Projetil> projeteis;
     private boolean ativo;
-    private Jogo jogo; // Referência para buscar alvos
-    private static final double VELOCIDADE_PROJETIL = 15;
-    private static final int INTERVALO_DE_DISPARO = 800; // 800ms para balanceamento
+    private final Jogo jogo;
+    
+    private static final double VELOCIDADE_PROJETIL = 18;
+    private static final int INTERVALO_DE_DISPARO = 700;
 
     public Canhao(double x, double y, Jogo jogo) {
         this.x = x;
         this.y = y;
         this.jogo = jogo;
-        this.angulo = 0;
         this.projeteis = new ArrayList<>();
         this.ativo = true;
     }
 
-    /**
-     * Mira automaticamente no alvo mais próximo.
-     */
     public synchronized void mirar() {
         List<Alvo> alvos = jogo.getAlvos();
         Alvo alvoMaisProximo = null;
-        double menorDistancia = Double.MAX_VALUE;
+        double menorDistanciaSq = Double.MAX_VALUE;
 
         for (Alvo a : alvos) {
             if (a.isAtivo()) {
                 double dx = a.getX() - this.x;
                 double dy = a.getY() - this.y;
-                double dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < menorDistancia) {
-                    menorDistancia = dist;
+                double distSq = dx * dx + dy * dy;
+                if (distSq < menorDistanciaSq) {
+                    menorDistanciaSq = distSq;
                     alvoMaisProximo = a;
                 }
             }
         }
 
         if (alvoMaisProximo != null) {
-            double dx = alvoMaisProximo.getX() - this.x;
-            double dy = alvoMaisProximo.getY() - this.y;
-            this.angulo = Math.atan2(dy, dx);
+            this.angulo = Math.atan2(alvoMaisProximo.getY() - this.y, alvoMaisProximo.getX() - this.x);
         }
     }
 
-    /**
-     * Dispara um projétil na direção do ângulo atual.
-     */
-    public synchronized void disparar() throws JogoException {
-        try {
-            if (!ativo) return;
-            
-            // Cria e inicia a Thread do Projétil
-            Projetil projetil = new Projetil(x, y, angulo, VELOCIDADE_PROJETIL);
-            synchronized (projeteis) {
-                projeteis.add(projetil);
-            }
-            projetil.start();
-        } catch (Exception e) {
-            throw new JogoException("Erro ao disparar: " + e.getMessage());
+    public void disparar() throws JogoException {
+        if (!ativo) return;
+        Projetil p = new Projetil(x, y, angulo, VELOCIDADE_PROJETIL);
+        synchronized (projeteis) {
+            projeteis.add(p);
         }
+        // Inicia a tarefa do projétil em uma nova thread
+        new Thread(p).start();
     }
 
     @Override
     public void run() {
-        while (ativo) {
+        while (ativo && !Thread.currentThread().isInterrupted()) {
+            mirar();
             try {
-                mirar();    // Lógica automática de mira
-                disparar(); // Disparo automático
+                disparar();
                 Thread.sleep(INTERVALO_DE_DISPARO);
             } catch (JogoException e) {
                 e.printStackTrace();
@@ -82,12 +71,6 @@ public class Canhao extends Thread {
                 break;
             }
         }
-    }
-
-    public synchronized void mover(double novaX, double novaY, double novoAngulo) {
-        this.x = novaX;
-        this.y = novaY;
-        this.angulo = novoAngulo;
     }
 
     public List<Projetil> getProjeteis() {
@@ -107,4 +90,5 @@ public class Canhao extends Thread {
     public double getAngulo() { return angulo; }
     public boolean isAtivo() { return ativo; }
     public void setAtivo(boolean ativo) { this.ativo = ativo; }
+    public void mover(double nx, double ny, double na) { this.x = nx; this.y = ny; this.angulo = na; }
 }

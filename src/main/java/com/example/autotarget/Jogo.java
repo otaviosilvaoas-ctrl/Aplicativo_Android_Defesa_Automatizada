@@ -6,15 +6,15 @@ import java.util.Random;
 
 /**
  * Classe principal que gerencia a lógica do jogo.
- * Controla alvos, canhões e o sistema de colisões.
+ * Controla o ciclo de vida dos alvos e canhões.
  */
-public class Jogo extends Thread {
-    private List<Alvo> alvos;
-    private List<Canhao> canhoes;
+public class Jogo implements Runnable {
+    private final List<Alvo> alvos;
+    private final List<Canhao> canhoes;
     private boolean emExecucao;
     private int abatesTotal;
+    private Thread threadPrincipal;
 
-    // Trava de sincronização para garantir segurança de thread nas listas
     private static final Object LOCK_ALVOS = new Object();
     private static final Object LOCK_CANHOES = new Object();
     private static final double DISTANCIA_MINIMA_CANHOES = 150.0;
@@ -28,10 +28,11 @@ public class Jogo extends Thread {
 
     @Override
     public void run() {
-        while (emExecucao) {
+        while (emExecucao && !Thread.currentThread().isInterrupted()) {
             try {
                 verificarColisoes();
-                Thread.sleep(30); // Frequência de atualização da física
+                // A thread do jogo foca na lógica de colisão e spawn
+                Thread.sleep(20); 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -40,9 +41,9 @@ public class Jogo extends Thread {
     }
 
     /**
-     * Inicia as threads do jogo e dos objetos.
+     * Inicia o jogo e todas as threads dos objetos.
      */
-    public void iniciar() throws JogoException {
+    public synchronized void iniciar() throws JogoException {
         if (emExecucao) {
             throw new JogoException("Jogo já está em execução");
         }
@@ -50,28 +51,30 @@ public class Jogo extends Thread {
         
         criarAlvosIniciais();
 
-        // Inicializa as threads dos alvos existentes
+        // Inicia threads dos alvos
         synchronized (LOCK_ALVOS) {
             for (Alvo alvo : alvos) {
-                if (alvo.getState() == State.NEW) alvo.start();
+                new Thread(alvo).start();
             }
         }
         
-        // Inicializa as threads dos canhões existentes
+        // Inicia threads dos canhões
         synchronized (LOCK_CANHOES) {
             for (Canhao canhao : canhoes) {
-                if (canhao.getState() == State.NEW) canhao.start();
+                new Thread(canhao).start();
             }
         }
 
         // Inicia a thread controladora do Jogo
-        if (this.getState() == State.NEW) {
-            this.start();
-        }
+        threadPrincipal = new Thread(this);
+        threadPrincipal.start();
     }
 
-    public void parar() {
+    public synchronized void parar() {
         emExecucao = false;
+        if (threadPrincipal != null) {
+            threadPrincipal.interrupt();
+        }
         synchronized (LOCK_ALVOS) {
             for (Alvo alvo : alvos) alvo.setAtivo(false);
         }
@@ -95,15 +98,12 @@ public class Jogo extends Thread {
     private void adicionarAlvo(Alvo alvo) {
         synchronized (LOCK_ALVOS) {
             alvos.add(alvo);
-            if (emExecucao && alvo.getState() == State.NEW) {
-                alvo.start();
+            if (emExecucao) {
+                new Thread(alvo).start();
             }
         }
     }
 
-    /**
-     * Adiciona um canhão garantindo que não haja sobreposição.
-     */
     public void adicionarCanhao(double x, double y) throws JogoException {
         synchronized (LOCK_CANHOES) {
             if (canhoes.size() >= 10) {
@@ -118,18 +118,14 @@ public class Jogo extends Thread {
                 }
             }
 
-            // Passa 'this' para que o canhão possa localizar alvos
             Canhao novoCanhao = new Canhao(x, y, this);
             canhoes.add(novoCanhao);
-            if (emExecucao && novoCanhao.getState() == State.NEW) {
-                novoCanhao.start();
+            if (emExecucao) {
+                new Thread(novoCanhao).start();
             }
         }
     }
 
-    /**
-     * Região crítica: verifica colisão entre projéteis de todos os canhões e todos os alvos.
-     */
     public void verificarColisoes() {
         synchronized (LOCK_ALVOS) {
             synchronized (LOCK_CANHOES) {
@@ -140,7 +136,6 @@ public class Jogo extends Thread {
                     for (Canhao canhao : canhoes) {
                         for (Projetil projetil : canhao.getProjeteis()) {
                             if (projetil.isAtivo() && alvo.verificarColisao(projetil)) {
-                                // Polimorfismo: o método verificarColisao funciona para qualquer subclasse de Alvo
                                 alvo.setAtivo(false);
                                 projetil.setAtivo(false);
                                 abatesTotal++;
