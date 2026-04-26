@@ -31,7 +31,7 @@ public abstract class Alvo implements Runnable {
         double dy = this.y - projetil.getY();
         double distanciaSq = dx * dx + dy * dy;
         double raioSoma = this.raio + projetil.getRaio();
-        return distanciaSq < raioSoma * raioSoma; // Evita Math.sqrt por desempenho
+        return distanciaSq < raioSoma * raioSoma;
     }
 
     @Override

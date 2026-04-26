@@ -1,6 +1,5 @@
 package com.example.autotarget;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -31,7 +30,8 @@ public class GameViewActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_game_view);
+        // Corrigido erro de ambiguidade chamando explicitamente a classe pai
+        super.setContentView(R.layout.activity_game_view);
 
         jogoView = findViewById(R.id.jogo_view);
         Button addCannonButton = findViewById(R.id.add_cannon_button);

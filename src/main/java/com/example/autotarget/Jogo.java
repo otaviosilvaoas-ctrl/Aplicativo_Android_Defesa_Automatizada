@@ -6,7 +6,7 @@ import java.util.Random;
 
 /**
  * Classe principal que gerencia a lógica do jogo.
- * Controla o ciclo de vida dos alvos e canhões.
+ * Implementa Runnable para ser controlado por uma Thread mestre.
  */
 public class Jogo implements Runnable {
     private final List<Alvo> alvos;
@@ -31,7 +31,6 @@ public class Jogo implements Runnable {
         while (emExecucao && !Thread.currentThread().isInterrupted()) {
             try {
                 verificarColisoes();
-                // A thread do jogo foca na lógica de colisão e spawn
                 Thread.sleep(20); 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -40,9 +39,6 @@ public class Jogo implements Runnable {
         }
     }
 
-    /**
-     * Inicia o jogo e todas as threads dos objetos.
-     */
     public synchronized void iniciar() throws JogoException {
         if (emExecucao) {
             throw new JogoException("Jogo já está em execução");
@@ -51,21 +47,18 @@ public class Jogo implements Runnable {
         
         criarAlvosIniciais();
 
-        // Inicia threads dos alvos
         synchronized (LOCK_ALVOS) {
             for (Alvo alvo : alvos) {
                 new Thread(alvo).start();
             }
         }
         
-        // Inicia threads dos canhões
         synchronized (LOCK_CANHOES) {
             for (Canhao canhao : canhoes) {
                 new Thread(canhao).start();
             }
         }
 
-        // Inicia a thread controladora do Jogo
         threadPrincipal = new Thread(this);
         threadPrincipal.start();
     }
